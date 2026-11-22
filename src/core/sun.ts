@@ -17,7 +17,8 @@ export function sunInfo(now: Date, { lat, lon }: Coords): SunInfo {
   return {
     sunrise: isValidDate(times.sunrise) ? times.sunrise : null,
     sunset: isValidDate(times.sunset) ? times.sunset : null,
-    altitudeDeg: (pos.altitude * 180) / Math.PI,
+    // suncalc 2.x already returns the altitude in degrees (1.x returned radians).
+    altitudeDeg: pos.altitude,
   };
 }
 
