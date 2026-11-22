@@ -1,5 +1,4 @@
-import { MapPin, Plus, Trash2 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
+import { LocateFixed, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -15,7 +14,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { SunHorizon } from "@/components/sun-horizon";
+import { SkyWindow } from "@/components/sky-window";
+import type { LocationState } from "@/hooks/use-location";
 import { soonest, type Alarm } from "@/core/alarms";
 import { sunInfo, type Coords } from "@/core/sun";
 import { formatClock, formatMinutes } from "@/lib/format";
@@ -29,8 +29,8 @@ type Props = {
   onSetTime: (id: string, time: string) => void;
   onSetOn: (id: string, enabled: boolean) => void;
   onRemove: (id: string) => void;
+  location: LocationState;
   onRequestLocation: () => void;
-  locationError: string | null;
 };
 
 export function AlarmScreen({
@@ -42,50 +42,66 @@ export function AlarmScreen({
   onSetTime,
   onSetOn,
   onRemove,
+  location,
   onRequestLocation,
-  locationError,
 }: Props) {
   const sun = coords ? sunInfo(now, coords) : null;
   const next = soonest(alarms);
 
-  const sunLine = sun?.sunrise
-    ? `Sunrise ${formatClock(sun.sunrise)} · sun is ${formatAltitude(sun.altitudeDeg)}`
-    : coords
-      ? "No sunrise today at this place"
-      : "Set your location to see sunrise";
+  const finding = location.kind === "finding";
+  const errorMessage = location.kind === "error" ? location.message : null;
 
   return (
-    <div className="flex flex-col gap-8">
-      {!coords && (
-        <Alert variant="info">
-          <MapPin />
-          <AlertTitle>Location is needed for sunrise</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            <span>The app uses it to tell you when the sun rises, and whether it is still night.</span>
-            {locationError && <span role="status">{locationError}</span>}
-            <Button size="sm" variant="outline" className="w-fit" onClick={onRequestLocation}>
-              Use my location
+    <div className="flex flex-col gap-6">
+      <SkyWindow altitudeDeg={sun ? sun.altitudeDeg : null}>
+        {coords ? (
+          <>
+            <p className="text-sm font-medium opacity-80">{skyPhrase(sun?.altitudeDeg ?? 0)}</p>
+            <p className="font-heading text-5xl leading-none font-bold tracking-tight tabular-nums">
+              {sun?.sunrise ? formatClock(sun.sunrise) : "No sunrise"}
+            </p>
+            <p className="text-sm opacity-80">
+              {sun?.sunrise ? "Sunrise today" : "The sun does not rise here today"}
+            </p>
+            {next && (
+              <p className="mt-auto text-sm font-medium tabular-nums">
+                Next alarm {nextLabel(new Date(next.nextAt), now)}
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="font-heading text-3xl leading-tight font-bold tracking-tight">Where is your sky?</p>
+            <p className="max-w-[30ch] text-sm opacity-85">
+              Your location gives you sunrise times and tells the app whether it is still dark.
+              It stays on this phone.
+            </p>
+            {errorMessage && (
+              <p role="status" className="max-w-[34ch] rounded-xl bg-black/25 px-3 py-2 text-sm">
+                {errorMessage}
+              </p>
+            )}
+            <Button
+              size="lg"
+              className="mt-1 h-11 w-fit rounded-full bg-white px-5 text-[#142039] hover:bg-white/90"
+              disabled={finding}
+              onClick={onRequestLocation}
+            >
+              <LocateFixed />
+              {finding ? "Finding you…" : errorMessage ? "Try again" : "Use my location"}
             </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <section aria-label="Sky" className="flex flex-col gap-3">
-        {sun && <SunHorizon altitudeDeg={sun.altitudeDeg} />}
-        <p className="text-sm tabular-nums">{sunLine}</p>
-        {next && (
-          <p className="text-xs text-muted-foreground tabular-nums">Next alarm {nextLabel(new Date(next.nextAt), now)}</p>
+          </>
         )}
-      </section>
+      </SkyWindow>
 
       {alarms.length === 0 ? (
-        <Empty className="border">
+        <Empty className="rounded-3xl border border-dashed">
           <EmptyHeader>
             <EmptyTitle>No alarms yet</EmptyTitle>
             <EmptyDescription>Add one for each morning you want to catch the sky.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button onClick={onAdd} disabled={ringing}>
+            <Button size="lg" className="h-11 rounded-full px-5" onClick={onAdd} disabled={ringing}>
               <Plus />
               Add an alarm
             </Button>
@@ -107,7 +123,7 @@ export function AlarmScreen({
               </li>
             ))}
           </ul>
-          <Button variant="outline" className="w-full" onClick={onAdd} disabled={ringing}>
+          <Button variant="outline" size="lg" className="h-11 w-full rounded-full" onClick={onAdd} disabled={ringing}>
             <Plus />
             Add an alarm
           </Button>
@@ -115,7 +131,8 @@ export function AlarmScreen({
       )}
 
       <p className="text-xs text-muted-foreground">
-        Browsers can stop a locked phone from ringing. Keep the app open or pinned to your home screen.
+        A locked phone may not ring from a web page. Leave Sky First open on screen overnight, or add it to your home
+        screen.
       </p>
     </div>
   );
@@ -131,24 +148,24 @@ type CardProps = {
 };
 
 function AlarmCard({ alarm, now, disabled, onSetTime, onSetOn, onRemove }: CardProps) {
-  const meta = alarm.enabled ? `Daily · next ${nextLabel(new Date(alarm.nextAt), now)}` : "Off";
+  const meta = alarm.enabled ? `Every day, next ${nextLabel(new Date(alarm.nextAt), now)}` : "Off";
 
   return (
-    <Card size="sm">
-      <CardContent className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
+    <Card size="sm" className="rounded-3xl">
+      <CardContent className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <input
             type="time"
             aria-label="Wake time"
             value={alarm.time}
             disabled={disabled}
             onChange={(e) => e.target.value && onSetTime(alarm.id, e.target.value)}
-            className="w-fit bg-transparent text-5xl font-semibold tracking-tight tabular-nums outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+            className="time-input w-full min-w-0 bg-transparent font-heading text-4xl font-bold tracking-tight tabular-nums outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
           />
           <CardDescription className="text-xs tabular-nums">{meta}</CardDescription>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
           <Switch
             checked={alarm.enabled}
             disabled={disabled}
@@ -189,7 +206,11 @@ function nextLabel(at: Date, now: Date): string {
   return `${day} ${formatClock(at)}, in ${formatMinutes(minutes)}`;
 }
 
-function formatAltitude(deg: number): string {
+/** What the sky is doing now, in plain words. */
+function skyPhrase(deg: number): string {
   const rounded = Math.round(Math.abs(deg));
-  return deg >= 0 ? `${rounded}° up` : `${rounded}° below the horizon`;
+  if (deg < -12) return `Night. The sun is ${rounded}° below the horizon.`;
+  if (deg < -4) return `Twilight. The sun is ${rounded}° below the horizon.`;
+  if (deg < 0) return "Dawn. The sun is just below the horizon.";
+  return `Daylight. The sun is ${rounded}° up.`;
 }

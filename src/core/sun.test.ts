@@ -11,9 +11,16 @@ describe("sunInfo", () => {
     expect(Math.abs(info.sunrise!.getTime() - expected)).toBeLessThan(10 * 60_000);
   });
 
+  it("reports a realistic noon altitude in degrees (about 62° in London at midsummer)", () => {
+    const info = sunInfo(new Date("2026-06-21T12:00:00Z"), london);
+    expect(info.altitudeDeg).toBeGreaterThan(55);
+    expect(info.altitudeDeg).toBeLessThan(65);
+  });
+
   it("reports the sun below the horizon at local midnight", () => {
     const info = sunInfo(new Date("2026-06-21T23:30:00Z"), london);
     expect(info.altitudeDeg).toBeLessThan(0);
+    expect(info.altitudeDeg).toBeGreaterThan(-90);
   });
 });
 
